@@ -117,6 +117,7 @@ const submitSymptoms = async () => {
     selectedSymptoms.value = []
   } catch (err) {
     response.value = { error: err.message }
+    console.log(err.message)
   }
 }
 </script>

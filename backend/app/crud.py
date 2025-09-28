@@ -1,5 +1,14 @@
 from sqlalchemy.orm import Session
 from . import models
+from app import schemas
+
+
+def create_symptom(db, name, description=""):
+    symptom = models.Symptom(name=name, description=description)
+    db.add(symptom)
+    db.commit()
+    db.refresh(symptom)
+    return symptom
 
 def get_patient_by_phone(db: Session, phone: str):
     return db.query(models.Patient).filter(models.Patient.phone_number == phone).first()
