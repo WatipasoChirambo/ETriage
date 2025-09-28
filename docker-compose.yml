@@ -1,0 +1,35 @@
+services:
+  db:
+    image: postgres:15
+    container_name: triage_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: triage_user
+      POSTGRES_PASSWORD: triage_password
+      POSTGRES_DB: triage_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build: ./backend
+    container_name: triage_backend
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: "postgresql://triage_user:triage_password@db:5432/triage_db"
+    depends_on:
+      - db
+
+  frontend:
+    build: ./frontend
+    container_name: triage_frontend
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
