@@ -106,41 +106,41 @@ def get_medical_schemes(db: Session = Depends(get_db)):
     return db.query(models.MedicalScheme).all()
 
 
-# ----------------------
-# SUBMIT SYMPTOMS
-# ----------------------
 @app.post("/submit_symptoms/", response_model=schemas.SubmitSymptomsResponse)
 def submit_symptoms(submission: schemas.SubmitSymptomsRequest, db: Session = Depends(get_db)):
+    print("SUBMISSION PAYLOAD:", submission)
 
-    # Optional: validate lengths
     try:
         submission.validate_lengths()
-    except ValueError as e:
+    except Exception as e:
+        print("Validation error:", e)
         raise HTTPException(status_code=400, detail=str(e))
 
-    # Check if patient exists
-    patient = crud.get_patient_by_phone(db, submission.phone_number, submission.hospital_id)
-    if not patient:
-        patient_data = {
-            "phone_number": submission.phone_number,
-            "first_name": submission.first_name or "Unknown",
-            "last_name": submission.last_name or "",
-            "has_scheme": submission.has_scheme,
-            "hospital_id": submission.hospital_id,
-            "medical_scheme_id": submission.medical_scheme_id,
-            "member_number": submission.member_number,
-        }
-        patient = crud.create_patient(db, patient_data)
+    try:
+        patient = crud.get_patient_by_phone(db, submission.phone_number, submission.hospital_id)
+        if not patient:
+            patient_data = {
+                "phone_number": submission.phone_number,
+                "first_name": submission.first_name or "Unknown",
+                "last_name": submission.last_name or "",
+                "has_scheme": submission.has_scheme,
+                "hospital_id": submission.hospital_id,
+                "medical_scheme_id": submission.medical_scheme_id,
+                "member_number": submission.member_number,
+            }
+            patient = crud.create_patient(db, patient_data)
 
-    # Add all submitted symptoms
-    for symptom_id, severity in zip(submission.symptoms, submission.severity):
-        crud.create_patient_symptom(db, patient.id, symptom_id, severity)
+        for symptom_id, severity in zip(submission.symptoms, submission.severity):
+            crud.create_patient_symptom(db, patient.id, symptom_id, severity)
 
-    # Create a default triage case (replace logic as needed)
-    triage_case = crud.create_triage_case(db, patient.id, "low", "Home care recommended")
+        triage_case = crud.create_triage_case(db, patient.id, "low", "Home care recommended")
 
-    return schemas.SubmitSymptomsResponse(
-        patient=schemas.PatientOut.from_orm(patient),
-        triage_case=schemas.TriageCaseOut.from_orm(triage_case)
-    )
+        return schemas.SubmitSymptomsResponse(
+            patient=schemas.PatientOut.from_orm(patient),
+            triage_case=schemas.TriageCaseOut.from_orm(triage_case)
+        )
+
+    except Exception as e:
+        print("SERVER ERROR:", e)
+        raise HTTPException(status_code=500, detail="Server crashed, check logs")
 

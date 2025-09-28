@@ -13,5 +13,6 @@ import SymptomForm from './components/SymptomForm.vue'
 #app {
   font-family: Arial, sans-serif;
   padding: 20px;
+  background:white;
 }
 </style>
