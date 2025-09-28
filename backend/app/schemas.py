@@ -2,6 +2,17 @@ from typing import Optional, List
 from pydantic import BaseModel
 
 
+class SymptomSubmission(BaseModel):
+    phone_number: str
+    first_name: Optional[str]
+    last_name: Optional[str]
+    has_scheme: bool
+    medical_scheme_id: Optional[str] = None
+    member_number: Optional[str] = None
+    symptoms: List[int]
+    severity: List[int]
+
+
 # -----------------------------
 # SYMPTOMS
 # -----------------------------

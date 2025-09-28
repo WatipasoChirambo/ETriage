@@ -1,25 +1,23 @@
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from app import models, crud, schemas
-from app.database import engine, Base, get_db, SessionLocal
+from app import crud, models, schemas
+from app.database import get_db, engine, Base, SessionLocal
 
-# 1. Create database tables
 Base.metadata.create_all(bind=engine)
 
-# 2. Initialize FastAPI app
 app = FastAPI(title="Hospital Triage MVP")
 
-# 3. Add CORS middleware
+# Enable CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # allow all origins, change to your frontend URL in production
+    allow_origins=["*"],  # Or specify frontend URL in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# 4. Seed default symptoms
+# Seed default symptoms
 def seed_symptoms():
     db: Session = SessionLocal()
     default_symptoms = [
@@ -37,63 +35,38 @@ def seed_symptoms():
 
 seed_symptoms()
 
-# 5. Routes
+# Get all symptoms
 @app.get("/symptoms/")
 def get_symptoms(db: Session = Depends(get_db)):
     return db.query(models.Symptom).all()
 
-@app.get("/triage_cases/")
-def get_triage_cases(db: Session = Depends(get_db)):
-    cases = db.query(models.TriageCase).all()
-    result = []
-    for case in cases:
-        patient = db.query(models.Patient).filter(models.Patient.id == case.patient_id).first()
-        symptoms = db.query(models.PatientSymptom).filter(models.PatientSymptom.patient_id == patient.id).all()
-        result.append({
-            "id": case.id,
-            "first_name": patient.first_name,
-            "last_name": patient.last_name,
-            "phone_number": patient.phone_number,
-            "symptoms": [s.symptom_id for s in symptoms],
-            "severity": [s.severity for s in symptoms],
-            "triage_level": case.triage_level,
-            "recommended_action": case.action
-        })
-    return result
 
+# Submit symptoms endpoint
 @app.post("/submit_symptoms/")
-def submit_symptoms(
-    phone_number: str,
-    first_name: str = None,
-    last_name: str = None,
-    has_scheme: bool = False,
-    medical_scheme_id: int = None,
-    member_number: str = None,
-    symptoms: list[int] = [],
-    severity: list[int] = [],
-    db: Session = Depends(get_db)
-):
-    # Get or create patient
-    patient = crud.get_patient_by_phone(db, phone_number)
+def submit_symptoms(submission: schemas.SymptomSubmission, db: Session = Depends(get_db)):
+    data = submission.dict()
+
+    # 1. Get or create patient
+    patient = crud.get_patient_by_phone(db, data["phone_number"])
     if not patient:
         patient_data = {
-            "phone_number": phone_number,
-            "first_name": first_name,
-            "last_name": last_name,
-            "has_scheme": has_scheme,
-            "medical_scheme_id": medical_scheme_id,
-            "member_number": member_number
+            "phone_number": data["phone_number"],
+            "first_name": data.get("first_name"),
+            "last_name": data.get("last_name"),
+            "has_scheme": data.get("has_scheme", False),
+            "medical_scheme_id": data.get("medical_scheme_id"),
+            "member_number": data.get("member_number")
         }
         patient = crud.create_patient(db, patient_data)
 
-    # Save symptoms
+    # 2. Save symptoms
     patient_symptoms = []
-    for s_id, sev in zip(symptoms, severity):
+    for s_id, sev in zip(data["symptoms"], data["severity"]):
         ps = crud.create_patient_symptom(db, patient.id, s_id, sev)
         patient_symptoms.append({"symptom_id": ps.symptom_id, "severity": ps.severity})
 
-    # Simple triage logic
-    max_sev = max(severity) if severity else 1
+    # 3. Simple triage logic
+    max_sev = max(data["severity"]) if data["severity"] else 1
     if max_sev == 3:
         triage_level = "high"
         action = "Visit hospital immediately"
@@ -106,13 +79,13 @@ def submit_symptoms(
 
     triage_case = crud.create_triage_case(db, patient.id, triage_level, action)
 
-    # Create alert if critical
+    # 4. Create alert if critical
     if triage_level == "high":
         crud.create_alert(
             db, patient.id, triage_case.id, "critical", f"Patient {patient.id} requires attention!"
         )
 
-    # Return patient info for frontend
+    # 5. Return full patient info for frontend
     return {
         "patient": {
             "id": patient.id,

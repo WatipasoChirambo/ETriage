@@ -19,36 +19,20 @@
     <div v-for="symptom in symptomsList" :key="symptom.id" class="symptom-row">
       <input type="checkbox" :value="symptom.id" v-model="selectedSymptoms" />
       {{ symptom.name }}
-      <input type="number" v-model.number="severityMap[symptom.id]" placeholder="Severity" min="1" max="5" />
+      <input
+        type="number"
+        v-model.number="severityMap[symptom.id]"
+        placeholder="Severity (1-5)"
+        min="1"
+        max="5"
+      />
     </div>
 
     <button @click="submitSymptoms">Submit</button>
 
     <div v-if="response">
       <h3>Response:</h3>
-      <pre>{{ JSON.stringify(response, null, 2) }}</pre>
-    </div>
-
-    <div v-if="cases.length">
-      <h3>Admin Dashboard (Live)</h3>
-      <table border="1" cellpadding="5">
-        <tr>
-          <th>Patient</th>
-          <th>Phone</th>
-          <th>Symptoms</th>
-          <th>Severity</th>
-          <th>Triage Level</th>
-          <th>Action</th>
-        </tr>
-        <tr v-for="c in cases" :key="c.id">
-          <td>{{ c.first_name }} {{ c.last_name }}</td>
-          <td>{{ c.phone_number }}</td>
-          <td>{{ c.symptoms.map(s => s.symptom_id).join(', ') }}</td>
-          <td>{{ c.symptoms.map(s => s.severity).join(', ') }}</td>
-          <td>{{ c.triage_case.triage_level }}</td>
-          <td>{{ c.triage_case.recommended_action }}</td>
-        </tr>
-      </table>
+      <pre class="text-black">{{ JSON.stringify(response, null, 2) }}</pre>
     </div>
   </div>
 </template>
@@ -68,10 +52,10 @@ const severityMap = reactive({})
 const response = ref(null)
 const cases = ref([])
 
-// Backend URL (Docker network or localhost)
+// Backend URL
 const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'
 
-// Fetch symptom list on mount
+// Fetch symptoms on mount
 onMounted(async () => {
   try {
     const res = await fetch(`${backendUrl}/symptoms/`)
@@ -84,15 +68,31 @@ onMounted(async () => {
 
 // Submit form
 const submitSymptoms = async () => {
+  // Basic validation
+  if (!phoneNumber.value) {
+    alert('Phone number is required')
+    return
+  }
+  if (selectedSymptoms.value.length === 0) {
+    alert('Select at least one symptom')
+    return
+  }
+
+  // Build severity array, default to 1 if undefined
+  const severity = selectedSymptoms.value.map(id => {
+    const s = severityMap[id]
+    return s && s >= 1 ? s : 1
+  })
+
   const payload = {
     phone_number: phoneNumber.value,
-    first_name: firstName.value,
-    last_name: lastName.value,
+    first_name: firstName.value || null,
+    last_name: lastName.value || null,
     has_scheme: hasScheme.value,
-    medical_scheme_id: hasScheme.value ? medicalSchemeId.value : null,
-    member_number: hasScheme.value ? memberNumber.value : null,
+    medical_scheme_id: hasScheme.value ? medicalSchemeId.value || null : null,
+    member_number: hasScheme.value ? memberNumber.value || null : null,
     symptoms: selectedSymptoms.value,
-    severity: selectedSymptoms.value.map(id => severityMap[id])
+    severity
   }
 
   try {
@@ -101,13 +101,24 @@ const submitSymptoms = async () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     })
+
+    if (!res.ok) {
+      const errText = await res.text()
+      console.error('Backend error:', errText)
+      alert('Server error occurred')
+      return
+    }
+
     const data = await res.json()
     response.value = data
 
+    // Show popup
+    alert('Symptoms submitted successfully!')
+
     // Update admin dashboard live
     cases.value.push(data)
-    
-    // Clear form after submission
+
+    // Clear form
     phoneNumber.value = ''
     firstName.value = ''
     lastName.value = ''
@@ -115,9 +126,11 @@ const submitSymptoms = async () => {
     medicalSchemeId.value = ''
     memberNumber.value = ''
     selectedSymptoms.value = []
+    Object.keys(severityMap).forEach(key => (severityMap[key] = 1))
   } catch (err) {
     response.value = { error: err.message }
-    console.log(err.message)
+    console.error(err.message)
+    alert(`Error: ${err.message}`)
   }
 }
 </script>
@@ -128,6 +141,4 @@ input, select, button { width: 100%; margin: 5px 0; padding: 8px; }
 button { cursor: pointer; background-color: #4CAF50; color: white; border: none; }
 pre { background: #f3f3f3; padding: 10px; }
 .symptom-row { display: flex; gap: 10px; align-items: center; margin-bottom: 5px; }
-table { width: 100%; margin-top: 20px; border-collapse: collapse; }
-th, td { padding: 8px; text-align: left; }
 </style>
