@@ -30,15 +30,18 @@
 
     <button @click="submitSymptoms">Submit</button>
 
-    <div v-if="response">
+    <!-- <div v-if="response">
       <h3>Response:</h3>
       <pre class="text-black">{{ JSON.stringify(response, null, 2) }}</pre>
-    </div>
+    </div> -->
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
+import { useToast } from 'vue-toastification'
+
+const toast = useToast()
 
 const phoneNumber = ref('')
 const firstName = ref('')
@@ -70,11 +73,11 @@ onMounted(async () => {
 const submitSymptoms = async () => {
   // Basic validation
   if (!phoneNumber.value) {
-    alert('Phone number is required')
+    toast.error('Phone number is required')
     return
   }
   if (selectedSymptoms.value.length === 0) {
-    alert('Select at least one symptom')
+    toast.error('Select at least one symptom')
     return
   }
 
@@ -105,15 +108,20 @@ const submitSymptoms = async () => {
     if (!res.ok) {
       const errText = await res.text()
       console.error('Backend error:', errText)
-      alert('Server error occurred')
+      toast.error('Server error occurred')
       return
     }
 
     const data = await res.json()
     response.value = data
 
-    // Show popup
-    alert('Symptoms submitted successfully!')
+    // Show nice toast with patient info
+    toast.success(
+      `Patient ${data.patient.first_name} ${data.patient.last_name} submitted successfully!\n` +
+      `Triage Level: ${data.triage_case.triage_level}\n` +
+      `Recommended Action: ${data.triage_case.recommended_action}`,
+      { timeout: 8000 }
+    )
 
     // Update admin dashboard live
     cases.value.push(data)
