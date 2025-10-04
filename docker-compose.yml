@@ -31,6 +31,23 @@ services:
       - "5173:5173"
     depends_on:
       - backend
-
+  redis:
+    image: redis:7
+    container_name: triage_redis
+    restart: always
+    ports:
+      - "6379:6379"
+  ussd-api:
+    build: ./ussd-api
+    container_name: triage_ussd_api
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      BACKEND_URL: "http://triage_backend:8000"
+      REDIS_URL: "redis://triage_redis:6379"
+    depends_on:
+      - backend
+      - redis
 volumes:
   postgres_data:
